@@ -20,7 +20,7 @@ type DeploymentConfig struct {
 	ChainID      int    `json:"chainId"`
 	BlockTime    int    `json:"blockTime"`
 	Tier         string `json:"tier"`
-	StorageClass string `json:"storageClass"`
+	// StorageClass string `json:"storageClass"`
 }
 
 var (
@@ -48,7 +48,7 @@ func init() {
 	rootCmd.Flags().IntVar(&config.ChainID, "chain-id", 1, "Chain ID")
 	rootCmd.Flags().IntVar(&config.BlockTime, "block-time", 0, "Block time")
 	rootCmd.Flags().StringVar(&config.Tier, "tier", "free", "Resource tier (free, professional, enterprise)")
-	rootCmd.Flags().StringVar(&config.StorageClass, "storage-class", "standard", "Storage class")
+	// rootCmd.Flags().StringVar(&config.StorageClass, "storage-class", "standard", "Storage class")
 
 	rootCmd.MarkFlagRequired("id")
 }
