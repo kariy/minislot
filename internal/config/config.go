@@ -2,7 +2,7 @@
 package config
 
 import (
-	"io/ioutil"
+	"fmt"
 	"os"
 
 	"text/template"
@@ -19,12 +19,12 @@ func Load() (*Config, error) {
 		port = "8080"
 	}
 
-	tmplContent, err := ioutil.ReadFile("katana-template.yaml")
+	content, err := os.ReadFile("katana-template.yaml")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read katana template file: %w", err)
 	}
 
-	tmpl, err := template.New("katana").Parse(string(tmplContent))
+	tmpl, err := template.New("katana").Parse(string(content))
 	if err != nil {
 		return nil, err
 	}

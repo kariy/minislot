@@ -4,9 +4,9 @@ package main
 import (
 	"log"
 
-	"github.com/kariy/minislot/internal/config"
-	"github.com/kariy/minislot/internal/k8s"
-	"github.com/kariy/minislot/internal/server"
+	"minislot/internal/config"
+	"minislot/internal/k8s"
+	"minislot/internal/server"
 )
 
 func main() {

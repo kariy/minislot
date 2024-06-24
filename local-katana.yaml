@@ -1,65 +1,65 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels:
-    app.kubernetes.io/name: katana
-  name: katana
-  namespace: default
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: katana
-  template:
-    metadata:
-      labels:
+    labels:
         app.kubernetes.io/name: katana
-    spec:
-      securityContext:
-        fsGroup: 1000
-      containers:
-        - name: katana
-          image: ghcr.io/dojoengine/dojo:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/bin/sh", "-c"]
-          args:
-            - >
-              katana
-              --seed=0
-              --chain-id=1
-              2>&1 | tee -a /data/katana.log
-          ports:
-            - containerPort: 5050
-              name: http
-              protocol: TCP
-          volumeMounts:
-            - name: katana-data
-              mountPath: /data
-          resources:
-            requests:
-              memory: 1Gi
-              cpu: 500m
-            limits:
-              memory: 2Gi
-              cpu: 1
-      volumes:
-        - name: katana-data
-          emptyDir: {}
+    name: katana
+    namespace: default
+spec:
+    replicas: 1
+    strategy:
+        type: Recreate
+    selector:
+        matchLabels:
+            app.kubernetes.io/name: katana
+    template:
+        metadata:
+            labels:
+                app.kubernetes.io/name: katana
+        spec:
+            securityContext:
+                fsGroup: 1000
+            containers:
+                - name: katana
+                  image: ghcr.io/dojoengine/dojo:latest
+                  imagePullPolicy: IfNotPresent
+                  command: ["/bin/sh", "-c"]
+                  args:
+                      - >
+                          katana
+                          --seed=0
+                          --chain-id=1
+                          2>&1 | tee -a /data/katana.log
+                  ports:
+                      - containerPort: 5050
+                        name: http
+                        protocol: TCP
+                  volumeMounts:
+                      - name: katana-data
+                        mountPath: /data
+                  resources:
+                      requests:
+                          memory: 1Gi
+                          cpu: 500m
+                      limits:
+                          memory: 2Gi
+                          cpu: 1
+            volumes:
+                - name: katana-data
+                  emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: katana
-  labels:
-    app.kubernetes.io/name: katana
+    name: katana
+    labels:
+        app.kubernetes.io/name: katana
 spec:
-  type: ClusterIP
-  ports:
-    - name: http
-      port: 80
-      protocol: TCP
-      targetPort: 5050
-  selector:
-    app.kubernetes.io/name: katana
+    type: ClusterIP
+    ports:
+        - name: http
+          port: 80
+          protocol: TCP
+          targetPort: 5050
+    selector:
+        app.kubernetes.io/name: katana

@@ -2,18 +2,21 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
 
+	"minislot/internal/config"
+
 	"github.com/gin-gonic/gin"
-	"github.com/kariy/minislot/internal/config"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/yaml"
 )
 
 type Server struct {
@@ -49,57 +52,69 @@ func New(cfg *config.Config, client *kubernetes.Clientset) *Server {
 	}
 }
 
-func (s *Server) Run() error {
+func (server *Server) Run() error {
 	r := gin.Default()
-	r.POST("/deploy", s.createDeployment)
-	return r.Run(":" + s.config.Port)
+	r.POST("/deploy", server.createDeployment)
+	r.GET("/health", server.health)
+	return r.Run(":" + server.config.Port)
 }
 
-func (s *Server) createDeployment(c *gin.Context) {
+func (server *Server) health(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"alive": true,
+	})
+}
+
+func (server *Server) createDeployment(c *gin.Context) {
 	var config DeploymentConfig
 	if err := c.BindJSON(&config); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	var renderedYAML string
-	err := s.config.Template.Execute(&renderedYAML, config)
+	// var renderedYAML string
+	var renderedYAML bytes.Buffer
+	err := server.config.Template.Execute(&renderedYAML, config)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error rendering template"})
 		return
 	}
 
-	resources := []runtime.Object{}
-	decoder := yaml.NewYAMLOrJSONDecoder([]byte(renderedYAML), 4096)
-	for {
-		var rawObj runtime.RawExtension
-		if err := decoder.Decode(&rawObj); err != nil {
-			break
-		}
-		obj, _, err := runtime.UnstructuredJSONScheme.Decode(rawObj.Raw, nil, nil)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error decoding YAML"})
-			return
-		}
-		resources = append(resources, obj)
-	}
+	scheme := runtime.NewScheme()
+    codecFactory := serializer.NewCodecFactory(scheme)
+
+    resources := []runtime.Object{}
+    decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(renderedYAML.Bytes()), 4096)
+    for {
+        var rawObj runtime.RawExtension
+        if err := decoder.Decode(&rawObj); err != nil {
+            break
+        }
+        obj, _, err := codecFactory.UniversalDecoder().Decode(rawObj.Raw, nil, nil)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Error decoding YAML"})
+            return
+        }
+        resources = append(resources, obj)
+    }
+
 
 	for _, obj := range resources {
 		switch o := obj.(type) {
 		case *corev1.PersistentVolumeClaim:
-			_, err := s.client.CoreV1().PersistentVolumeClaims(config.Namespace).Create(context.TODO(), o, metav1.CreateOptions{})
+			_, err := server.client.CoreV1().PersistentVolumeClaims(config.Namespace).Create(context.TODO(), o, metav1.CreateOptions{})
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error creating PVC: %v", err)})
 				return
 			}
 		case *appsv1.Deployment:
-			_, err := s.client.AppsV1().Deployments(config.Namespace).Create(context.TODO(), o, metav1.CreateOptions{})
+			_, err := server.client.AppsV1().Deployments(config.Namespace).Create(context.TODO(), o, metav1.CreateOptions{})
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error creating Deployment: %v", err)})
 				return
 			}
 		case *corev1.Service:
-			_, err := s.client.CoreV1().Services(config.Namespace).Create(context.TODO(), o, metav1.CreateOptions{})
+			_, err := server.client.CoreV1().Services(config.Namespace).Create(context.TODO(), o, metav1.CreateOptions{})
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error creating Service: %v", err)})
 				return

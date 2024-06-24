@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+    name: katana-data-{{ .Values.id }}
+spec:
+    accessModes:
+        - ReadWriteOnce
+    resources:
+        requests:
+            storage: { { .Values.storage } }
+    storageClassName: { { .Values.storageClass } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    labels:
+        app.kubernetes.io/name: katana-{{ .Values.id }}
+    name: katana-{{ .Values.id }}
+    namespace: { { .Values.namespace } }
+spec:
+    replicas: 1
+    strategy:
+        type: Recreate
+    selector:
+        matchLabels:
+            app.kubernetes.io/name: katana-{{ .Values.id }}
+    template:
+        metadata:
+            labels:
+                app.kubernetes.io/name: katana-{{ .Values.id }}
+        spec:
+            securityContext:
+                fsGroup: 1000
+            containers:
+                - name: katana
+                  image: ghcr.io/dojoengine/dojo:{{ .Values.version }}
+                  imagePullPolicy: IfNotPresent
+                  command: ["/bin/sh", "-c"]
+                  args:
+                      - >
+                          katana
+                          --seed={{ .Values.seed }}
+                          --chain-id={{ .Values.chainId }}
+                          {{ if .Values.blockTime }}--block-time={{ .Values.blockTime }}{{ end }}
+                          {{ if .Values.rpcUrl }}--rpc-url={{ .Values.rpcUrl }}{{ end }}
+                          {{ if .Values.forkBlockNumber }}--fork-block-number={{ .Values.forkBlockNumber }}{{ end }}
+                          2>&1 | tee -a /data/katana.log
+                  ports:
+                      - containerPort: 5050
+                        name: http
+                        protocol: TCP
+                  volumeMounts:
+                      - name: katana-data
+                        mountPath: /data
+                  resources:
+                      requests:
+                          memory: { { .Values.resources.requests.memory } }
+                          cpu: { { .Values.resources.requests.cpu } }
+                      limits:
+                          memory: { { .Values.resources.limits.memory } }
+                          cpu: { { .Values.resources.limits.cpu } }
+            volumes:
+                - name: katana-data
+                  persistentVolumeClaim:
+                      claimName: katana-data-{{ .Values.id }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+    name: katana-{{ .Values.id }}
+    labels:
+        app.kubernetes.io/name: katana-{{ .Values.id }}
+spec:
+    type: ClusterIP
+    ports:
+        - name: http
+          port: 80
+          protocol: TCP
+          targetPort: 5050
+    selector:
+        app.kubernetes.io/name: katana-{{ .Values.id }}
